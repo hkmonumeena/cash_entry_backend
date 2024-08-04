@@ -1,90 +1,91 @@
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
-const serverless = require('serverless-http');
 const app = express();
-const router = express.Router();
+const port = 3000;
 
-app.use(express.json()); // Parse JSON request bodies
+// Middleware
+app.use(express.json()); // For parsing application/json
 
-// MongoDB connection URI
-//const mongoUri = "mongodb+srv://monum811:Qdof5HxIQ6jNp5pA@mycluster.rvqjfla.mongodb.net/?retryWrites=true&w=majority&appName=mycluster";
+// MongoDB connection
+mongoose.connect(process.env.DBURI, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log('MongoDB connected successfully'))
+  .catch(err => console.error('MongoDB connection error:', err));
 
-const mongoUri = "mongodb+srv://monum811:Qdof5HxIQ6jNp5pA@mycluster.9nhhdax.mongodb.net/?retryWrites=true&w=majority&appName=mycluster"
-// Connect to MongoDB
-mongoose.connect(mongoUri, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
+// Define a schema and model
+const itemSchema = new mongoose.Schema({
+  name: String,
+  description: String
 });
 
-// Get the MongoDB connection
-const db = mongoose.connection;
+const Item = mongoose.model('Item', itemSchema);
 
-// Define a Mongoose schema
-const schema = new mongoose.Schema({
-    name: String,
-    email: String
+// CRUD Operations
+
+// Create an item
+app.post('/items', async (req, res) => {
+  try {
+    const item = new Item(req.body);
+    await item.save();
+    res.status(201).json(item);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
 });
 
-// Create a model from the schema
-const User = mongoose.model('User', schema);
+// Read all items
+app.get('/items', async (req, res) => {
+  try {
+    const items = await Item.find();
+    res.status(200).json(items);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
 
-// Connection status API endpoint
-router.get('/status', (req, res) => {
-    if (db.readyState === 1) {
-        res.json({ status: "success", message: "MongoDB is connected." });
+// Read a single item by ID
+app.get('/items/:id', async (req, res) => {
+  try {
+    const item = await Item.findById(req.params.id);
+    if (item) {
+      res.status(200).json(item);
     } else {
-        res.json({ status: "fail", message: "MongoDB is not connected." });
+      res.status(404).json({ message: 'Item not found' });
     }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 });
 
-// Get all model names
-router.get('/', (req, res) => {
-    res.send(mongoose.modelNames());
-});
-
-// Create a new record
-router.post('/add', async (req, res) => {
-    try {
-        const { name, email } = req.body;
-        const newUser = new User({ name, email });
-        await newUser.save();
-        res.send('New record added.');
-    } catch (error) {
-        res.status(500).send('Error adding record: ' + error.message);
+// Update an item by ID
+app.put('/items/:id', async (req, res) => {
+  try {
+    const item = await Item.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (item) {
+      res.status(200).json(item);
+    } else {
+      res.status(404).json({ message: 'Item not found' });
     }
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
 });
 
-// Delete existing record
-router.delete('/', (req, res) => {
-    res.send('Deleted existing record');
+// Delete an item by ID
+app.delete('/items/:id', async (req, res) => {
+  try {
+    const item = await Item.findByIdAndDelete(req.params.id);
+    if (item) {
+      res.status(200).json({ message: 'Item deleted' });
+    } else {
+      res.status(404).json({ message: 'Item not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 });
 
-// Update existing record
-router.put('/', (req, res) => {
-    res.send('Updating existing record');
+// Start server
+app.listen(port, () => {
+  console.log(`Server running on http://localhost:${port}`);
 });
-
-// Show demo records
-router.get('/demo', (req, res) => {
-    res.json([
-        {
-            id: '001',
-            name: 'Smith',
-            email: 'smith@gmail.com',
-        },
-        {
-            id: '002',
-            name: 'Sam',
-            email: 'sam@gmail.com',
-        },
-        {
-            id: '003',
-            name: 'lily',
-            email: 'lily@gmail.com',
-        },
-    ]);
-});
-
-app.use('/.netlify/functions/api', router);
-module.exports.handler = serverless(app);
