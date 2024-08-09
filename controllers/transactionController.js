@@ -294,6 +294,7 @@ exports.getTagsSummary = async (req, res) => {
           lastUsedDate: { $first: '$date' },
           lastTransactionAmount: { $first: '$amount' },
           lastTransactionStatus: { $first: '$status' },
+          lastTransactionType: { $first: '$type' }, // Capture the last transaction type
           totalCreditAmount: {
             $sum: {
               $cond: [{ $eq: ['$type', 'CREDIT'] }, '$amount', 0]
@@ -323,6 +324,7 @@ exports.getTagsSummary = async (req, res) => {
           lastUsedDate: 1,
           lastTransactionAmount: 1,
           lastTransactionStatus: 1,
+          lastTransactionType: 1, // Include the last transaction type in the projection
           totalCreditAmount: 1,
           totalDebitAmount: 1,
           totalCreditSum: 1,
@@ -333,8 +335,8 @@ exports.getTagsSummary = async (req, res) => {
           settlementMessage: {
             $cond: {
               if: { $gt: [{ $subtract: ['$totalCreditSum', '$totalDebitSum'] }, 0] },
-              then: { $concat: ['You have to pay ', { $toString: { $subtract: ['$totalCreditSum', '$totalDebitSum'] } }, ''] },
-              else: { $concat: ['You will receive ', { $toString: { $abs: { $subtract: ['$totalDebitSum', '$totalCreditSum'] } } }, ''] }
+              then: { $concat: ["You 'll pay ", { $toString: { $subtract: ['$totalCreditSum', '$totalDebitSum'] } }, ''] },
+              else: { $concat: ["You 'll get ", { $toString: { $abs: { $subtract: ['$totalDebitSum', '$totalCreditSum'] } } }, ''] }
             }
           }
         }
@@ -353,5 +355,246 @@ exports.getTagsSummary = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+
+
+
+// GET /api/transactions/by-tag
+exports.getTransactionsByTag = async (req, res) => {
+  const { tag, authId, startDate, endDate } = req.body;
+
+  try {
+    // Construct match conditions
+    const matchConditions = { authId, tag };
+    
+    // Add date range filter if dates are provided
+    if (startDate && endDate) {
+      matchConditions.date = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    }
+
+    // Find all transactions by tag
+    const transactions = await Transaction.find(matchConditions);
+
+    if (!transactions.length) {
+      return res.status(404).json({ message: 'No transactions found for the given tag and date range.' });
+    }
+
+    const pipeline = [
+      {
+        $match: matchConditions
+      },
+      {
+        $group: {
+          _id: null,
+          totalCredits: { 
+            $sum: { $cond: [{ $eq: ['$type', 'CREDIT'] }, '$amount', 0] } 
+          },
+          totalDebits: { 
+            $sum: { $cond: [{ $eq: ['$type', 'DEBIT'] }, '$amount', 0] } 
+          },
+          creditPending: { 
+            $sum: { $cond: [{ $and: [ { $eq: ['$type', 'CREDIT'] }, { $eq: ['$status', 'PENDING'] } ] }, '$amount', 0] }
+          },
+          creditCleared: { 
+            $sum: { $cond: [{ $and: [ { $eq: ['$type', 'CREDIT'] }, { $eq: ['$status', 'CLEARED'] } ] }, '$amount', 0] }
+          },
+          creditOverdue: { 
+            $sum: { $cond: [{ $and: [ { $eq: ['$type', 'CREDIT'] }, { $eq: ['$status', 'OVERDUE'] } ] }, '$amount', 0] }
+          },
+          creditVoid: {
+            $sum: { $cond: [{ $and: [ { $eq: ['$type', 'CREDIT'] }, { $eq: ['$status', 'VOID'] } ] }, '$amount', 0] }
+          },
+          debitPending: { 
+            $sum: { $cond: [{ $and: [ { $eq: ['$type', 'DEBIT'] }, { $eq: ['$status', 'PENDING'] } ] }, '$amount', 0] }
+          },
+          debitCleared: { 
+            $sum: { $cond: [{ $and: [ { $eq: ['$type', 'DEBIT'] }, { $eq: ['$status', 'CLEARED'] } ] }, '$amount', 0] }
+          },
+          debitOverdue: { 
+            $sum: { $cond: [{ $and: [ { $eq: ['$type', 'DEBIT'] }, { $eq: ['$status', 'OVERDUE'] } ] }, '$amount', 0] }
+          },
+          debitVoid: {
+            $sum: { $cond: [{ $and: [ { $eq: ['$type', 'DEBIT'] }, { $eq: ['$status', 'VOID'] } ] }, '$amount', 0] }
+          }
+        }
+      },
+      {
+        $addFields: {
+          netBalance: { $subtract: [
+            { $subtract: ['$totalCredits', '$creditVoid'] },
+            { $subtract: ['$totalDebits', '$debitVoid'] }
+          ]},
+          message: {
+            $cond: [
+              { $gt: [{ $subtract: [
+                { $subtract: ['$totalCredits', '$creditVoid'] },
+                { $subtract: ['$totalDebits', '$debitVoid'] }
+              ] }, 0] },
+              { $concat: ['You\'ll receive ', { $toString: { $subtract: [
+                { $subtract: ['$totalCredits', '$creditVoid'] },
+                { $subtract: ['$totalDebits', '$debitVoid'] }
+              ] } }, ' amount'] },
+              { $concat: ['You\'ll pay ', { $toString: { $abs: { $subtract: [
+                { $subtract: ['$totalCredits', '$creditVoid'] },
+                { $subtract: ['$totalDebits', '$debitVoid'] }
+              ] } } }, ' amount'] }
+            ]
+          }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          totalCredits: 1,
+          totalDebits: 1,
+          creditPending: 1,
+          creditCleared: 1,
+          creditOverdue: 1,
+          creditVoid: 1,
+          debitPending: 1,
+          debitCleared: 1,
+          debitOverdue: 1,
+          debitVoid: 1,
+          netBalance: 1,
+          message: 1
+        }
+      }
+    ];
+
+    const [summary] = await Transaction.aggregate(pipeline);
+
+    res.json({ transactions, summary });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getAllTransactionsFilter = async (req, res) => {
+  const { status = [], type = [], account = [], tag = [], date, amount, page = 1, limit = 10 } = req.body;
+
+  // Initialize query object
+  const query = { authId: "W5mzbR4YFSTClH6Tsf28LilEH9d2" }; // Assuming authId is available in req.authId
+
+  // Only add filters to the query if they have valid values
+  if (status.length > 0) {
+    query.status = { $in: status };
+  }
+
+  if (type.length > 0) {
+    query.type = { $in: type };
+  }
+
+  if (account.length > 0) {
+    query.account = { $in: account };
+  }
+
+  if (tag && tag.length > 0 && tag[0] !== "") {
+    query.tag = { $in: tag };
+  }
+
+  if (date && date.start && date.end) {
+    // Convert date strings to ISO format
+    const startDate = new Date(date.start).toISOString().split('T')[0];
+    const endDate = new Date(date.end).toISOString().split('T')[0];
+    
+    // Check if dates are valid
+    if (!isNaN(new Date(startDate).getTime()) && !isNaN(new Date(endDate).getTime())) {
+      query.date = {
+        $gte: startDate,
+        $lte: endDate
+      };
+    }
+  }
+
+  if (amount && amount.min !== undefined && amount.max !== undefined) {
+    query.amount = {
+      $gte: amount.min,
+      $lte: amount.max
+    };
+  }
+
+  try {
+    // Fetch transactions with the applied filters
+    const transactions = await Transaction.find(query)
+      .sort({ timeInMiles: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    // Count total transactions matching the query for pagination metadata
+    const totalTransactions = await Transaction.countDocuments(query);
+
+    // Calculate totalPages
+    const totalPages = totalTransactions ? Math.ceil(totalTransactions / limit) : 0;
+
+    // Group transactions by date and calculate summary
+    const transactionsByDate = {};
+    transactions.forEach(transaction => {
+      const dateKey = transaction.date;
+      if (!transactionsByDate[dateKey]) {
+        transactionsByDate[dateKey] = {
+          totalCredits: 0,
+          totalDebits: 0,
+          totalAmount: 0,
+          netBalance: 0,
+          transactionCount: 0,
+          transactions: []
+        };
+      }
+      const dateGroup = transactionsByDate[dateKey];
+      if (transaction.type === 'CREDIT') {
+        dateGroup.totalCredits += transaction.amount;
+      } else if (transaction.type === 'DEBIT') {
+        dateGroup.totalDebits += transaction.amount;
+      }
+      dateGroup.totalAmount += transaction.amount;
+      dateGroup.netBalance += (transaction.type === 'CREDIT' ? transaction.amount : -transaction.amount);
+      dateGroup.transactionCount += 1;
+      dateGroup.transactions.push(transaction);
+    });
+
+    // Format transactionsByDate for response
+    const formattedTransactionsByDate = Object.keys(transactionsByDate).map(date => ({
+      date,
+      ...transactionsByDate[date]
+    }));
+
+    // Send response
+    res.json({
+      dateRangeSummary: {
+        totalCredits: transactions.reduce((sum, txn) => txn.type === 'CREDIT' ? sum + txn.amount : sum, 0),
+        totalDebits: transactions.reduce((sum, txn) => txn.type === 'DEBIT' ? sum + txn.amount : sum, 0),
+        netBalance: transactions.reduce((sum, txn) => txn.type === 'CREDIT' ? sum + txn.amount : sum - txn.amount, 0)
+      },
+      transactionsByDate: formattedTransactionsByDate,
+      pagination: {
+        totalTransactions,
+        currentPage: page,
+        totalPages,
+        hasMorePages: page < totalPages
+      },
+      filterCriteria: {
+        status,
+        type,
+        account,
+        tag,
+        date,
+        amount
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+
+
+
+
+
 
 

@@ -7,7 +7,9 @@ const {
     getTransaction,
     getTransactions,
     getTransactionSummary,
-    getTagsSummary
+    getTagsSummary,
+    getTransactionsByTag,
+    getAllTransactionsFilter
   } = require('../controllers/transactionController');
 const router = express.Router();
 
@@ -28,7 +30,14 @@ router.post('/transactions/summary/', getTransactionSummary);
 // Get summary transaction
 router.post('/transactions/tagSummary/', getTagsSummary);
 
+// Get summary transaction
+router.post('/transactions/byTag/', getTransactionsByTag);
+
+// Get summary transaction
+router.post('/transactions/filterTransactions/', getAllTransactionsFilter);
+
 // Get paginated list of transactions
 router.get('/transactions', getTransactions);
+
 
 module.exports = router;
