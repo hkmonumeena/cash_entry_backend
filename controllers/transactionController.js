@@ -474,17 +474,18 @@ exports.getTransactionsByTag = async (req, res) => {
 };
 
 exports.getAllTransactionsFilter = async (req, res) => {
-  const { authId,status = [], type = [], account = [], tag = [], date, amount, page = 1, limit = 10 } = req.body;
+  const { authId, status = [], type = [], account = [], tag = [], date, amount, page = 1, limit = 10 } = req.body;
 
   // Initialize query object
-  const query = { authId: authId }; // Assuming authId is available in req.authId
-  // Ensure user exists (optional step depending on your needs)
+  const query = { authId: authId }; 
+
+  // Ensure user exists
   const userExists = await User.findOne({ authId });
   if (!userExists) {
     return res.status(201).json({ message: 'User not found' });
   }
 
-  // Only add filters to the query if they have valid values
+  // Apply filters to the query
   if (status.length > 0) {
     query.status = { $in: status };
   }
@@ -510,12 +511,10 @@ exports.getAllTransactionsFilter = async (req, res) => {
     endDate.setHours(23, 59, 59, 999);
 
     query.timeInMiles = {
-        $gte: startDate.getTime(),
-        $lte: endDate.getTime()
+      $gte: startDate.getTime(),
+      $lte: endDate.getTime()
     };
-}
-
-  
+  }
 
   if (amount && amount.min !== undefined && amount.max !== undefined) {
     query.amount = {
@@ -540,7 +539,9 @@ exports.getAllTransactionsFilter = async (req, res) => {
     // Group transactions by date and calculate summary
     const transactionsByDate = {};
     transactions.forEach(transaction => {
-      const dateKey = transaction.date;
+      // Extract date without time for grouping
+      const dateKey = new Date(transaction.timeInMiles).toISOString().split('T')[0]; // Format as 'YYYY-MM-DD'
+
       if (!transactionsByDate[dateKey]) {
         transactionsByDate[dateKey] = {
           totalCredits: 0,
