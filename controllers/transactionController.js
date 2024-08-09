@@ -474,10 +474,15 @@ exports.getTransactionsByTag = async (req, res) => {
 };
 
 exports.getAllTransactionsFilter = async (req, res) => {
-  const { status = [], type = [], account = [], tag = [], date, amount, page = 1, limit = 10 } = req.body;
+  const { authId,status = [], type = [], account = [], tag = [], date, amount, page = 1, limit = 10 } = req.body;
 
   // Initialize query object
-  const query = { authId: "W5mzbR4YFSTClH6Tsf28LilEH9d2" }; // Assuming authId is available in req.authId
+  const query = { authId: authId }; // Assuming authId is available in req.authId
+  // Ensure user exists (optional step depending on your needs)
+  const userExists = await User.findOne({ authId });
+  if (!userExists) {
+    return res.status(201).json({ message: 'User not found' });
+  }
 
   // Only add filters to the query if they have valid values
   if (status.length > 0) {
@@ -497,18 +502,20 @@ exports.getAllTransactionsFilter = async (req, res) => {
   }
 
   if (date && date.start && date.end) {
-    // Convert date strings to ISO format
-    const startDate = new Date(date.start).toISOString().split('T')[0];
-    const endDate = new Date(date.end).toISOString().split('T')[0];
-    
-    // Check if dates are valid
-    if (!isNaN(new Date(startDate).getTime()) && !isNaN(new Date(endDate).getTime())) {
-      query.date = {
-        $gte: startDate,
-        $lte: endDate
-      };
-    }
-  }
+    const startDate = new Date(date.start);
+    const endDate = new Date(date.end);
+
+    // Set start time to the beginning of the day and end time to the end of the day
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(23, 59, 59, 999);
+
+    query.timeInMiles = {
+        $gte: startDate.getTime(),
+        $lte: endDate.getTime()
+    };
+}
+
+  
 
   if (amount && amount.min !== undefined && amount.max !== undefined) {
     query.amount = {
