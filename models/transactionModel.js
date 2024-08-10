@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 
 const transactionSchema = new mongoose.Schema({
     date: String,
+    id:String,
     timeInMiles: Number,
     type: { type: String, enum: ['CREDIT', 'DEBIT'] },
     account: { type: String, enum: ['ONLINE', 'CASH'] },

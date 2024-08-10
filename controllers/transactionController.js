@@ -3,7 +3,7 @@ const User = require('../models/userModel');
 // Controller for creating a transaction
 exports.createTransaction = async (req, res) => {
     try {
-      const { authId, account, amount, date, remarks, tag, timeInMiles, transactionNumber, type, status } = req.body;
+      const { authId, account, amount, date, remarks, tag, timeInMiles, transactionNumber, type, status,id } = req.body;
   
       // Ensure user exists (optional step depending on your needs)
       const userExists = await User.findOne({ authId });
@@ -12,6 +12,7 @@ exports.createTransaction = async (req, res) => {
       }
   
       const transaction = new Transaction({
+        id,
         authId,
         account,
         amount,
