@@ -380,7 +380,7 @@ exports.getTransactionsByTag = async (req, res) => {
     const transactions = await Transaction.find(matchConditions);
 
     if (!transactions.length) {
-      return res.status(404).json({ message: 'No transactions found for the given tag and date range.' });
+      return res.status(200).json({ message: 'No transactions found for the given tag and date range.' });
     }
 
     const pipeline = [
@@ -424,23 +424,27 @@ exports.getTransactionsByTag = async (req, res) => {
       },
       {
         $addFields: {
-          netBalance: { $subtract: [
-            { $subtract: ['$totalCredits', '$creditVoid'] },
-            { $subtract: ['$totalDebits', '$debitVoid'] }
-          ]},
+          netBalance: { 
+            $subtract: [
+              { $subtract: ['$totalDebits', '$debitVoid'] }, 
+              { $subtract: ['$totalCredits', '$creditVoid'] }
+            ]
+          },
           message: {
             $cond: [
-              { $gt: [{ $subtract: [
-                { $subtract: ['$totalCredits', '$creditVoid'] },
-                { $subtract: ['$totalDebits', '$debitVoid'] }
-              ] }, 0] },
+              { $gt: [
+                { $subtract: [
+                  { $subtract: ['$totalDebits', '$debitVoid'] },
+                  { $subtract: ['$totalCredits', '$creditVoid'] }
+                ] }, 0] 
+              },
               { $concat: ['You\'ll receive ', { $toString: { $subtract: [
-                { $subtract: ['$totalCredits', '$creditVoid'] },
-                { $subtract: ['$totalDebits', '$debitVoid'] }
+                { $subtract: ['$totalDebits', '$debitVoid'] },
+                { $subtract: ['$totalCredits', '$creditVoid'] }
               ] } }, ' amount'] },
               { $concat: ['You\'ll pay ', { $toString: { $abs: { $subtract: [
-                { $subtract: ['$totalCredits', '$creditVoid'] },
-                { $subtract: ['$totalDebits', '$debitVoid'] }
+                { $subtract: ['$totalDebits', '$debitVoid'] },
+                { $subtract: ['$totalCredits', '$creditVoid'] }
               ] } } }, ' amount'] }
             ]
           }
@@ -464,6 +468,7 @@ exports.getTransactionsByTag = async (req, res) => {
         }
       }
     ];
+    
 
     const [summary] = await Transaction.aggregate(pipeline);
 
