@@ -34,12 +34,12 @@ exports.createTransaction = async (req, res) => {
 
   // Controller for updating a transaction
 exports.updateTransaction = async (req, res) => {
-    const { id } = req.body; // Transaction ID is passed as a URL parameter
+    const { _id } = req.body; // Transaction ID is passed as a URL parameter
     const updateData = req.body; // The fields to be updated are in the request body
   
     try {
       // Find the transaction by ID and update it with new data
-      const transaction = await Transaction.findByIdAndUpdate(id, updateData, {
+      const transaction = await Transaction.findByIdAndUpdate(_id, updateData, {
         new: true, // Return the updated document
         runValidators: true // Run schema validators on the update
       });
