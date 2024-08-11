@@ -16,13 +16,13 @@ const router = express.Router();
 // Route for creating an item
 router.post('/createTransaction',createTransaction);
 // Update a transaction
-router.post('/transactions/update/:id', updateTransaction);
+router.post('/transactions/update', updateTransaction);
 
 // Delete a transaction
-router.post('/transactions/delete/:id', deleteTransaction);
+router.post('/transactions/delete', deleteTransaction);
 
 // Get a single transaction
-router.get('/transactions/:id', getTransaction);
+router.get('/transactions', getTransaction);
 
 // Get summary transaction
 router.post('/transactions/summary/', getTransactionSummary);

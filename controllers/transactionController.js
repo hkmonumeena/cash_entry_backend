@@ -34,7 +34,7 @@ exports.createTransaction = async (req, res) => {
 
   // Controller for updating a transaction
 exports.updateTransaction = async (req, res) => {
-    const { id } = req.params; // Transaction ID is passed as a URL parameter
+    const { id } = req.body; // Transaction ID is passed as a URL parameter
     const updateData = req.body; // The fields to be updated are in the request body
   
     try {
@@ -59,8 +59,8 @@ exports.updateTransaction = async (req, res) => {
 
   // Controller for deleting a transaction
 exports.deleteTransaction = async (req, res) => {
-    const { id } = req.params; // Transaction ID is passed as a URL parameter
-  
+    const { id } = req.query; // Transaction ID is passed as a URL parameter
+    
     try {
       // Find and delete the transaction by ID
       const transaction = await Transaction.findByIdAndDelete(id);
@@ -80,7 +80,7 @@ exports.deleteTransaction = async (req, res) => {
 
   // Controller for getting a single transaction
 exports.getTransaction = async (req, res) => {
-    const { id } = req.params; // Transaction ID is passed as a URL parameter
+    const { id } = req.query; // Transaction ID is passed as a URL parameter
   
     try {
       // Find the transaction by ID
