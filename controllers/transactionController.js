@@ -99,13 +99,11 @@ exports.getTransaction = async (req, res) => {
   // Controller for getting a paginated list of transactions
 exports.getTransactions = async (req, res) => {
     const { authId, page = 1, limit = 10 } = req.query;
-
     // Check if authId is provided and valid
     if (!authId) {
       return res.status(400).json({ status: 'fail', message: 'authId is required.' });
     }
-   
-  
+
   };
 
 // Controller for getting the total sum and count of credits, debits, and by status
@@ -275,48 +273,99 @@ exports.getTransactionSummary = async (req, res) => {
 
 
 // Controller for getting unique tags with their details and settlement status
-// Controller for getting unique tags with their details and settlement status
+
 exports.getTagsSummary = async (req, res) => {
-  const { authId } = req.query; // authId is passed as a query parameter
+  const {
+    authId,
+    status,
+    type,
+    account,
+    tag,
+    date,
+    amount,
+    page = 1,
+    limit = 10,
+  } = req.body; // Assume the filters are passed in the request body
 
   if (!authId) {
     return res.status(400).json({ message: 'authId is required.' });
   }
 
   try {
+    // Construct match conditions based on filters
+    const matchConditions = { authId };
+
+    if (status && status.length > 0) {
+      matchConditions.status = { $in: status };
+    }
+
+    if (type && type.length > 0) {
+      matchConditions.type = { $in: type };
+    }
+
+    if (account && account.length > 0) {
+      matchConditions.account = { $in: account };
+    }
+
+    if (tag && tag.length > 0) {
+      matchConditions.tag = { $in: tag };
+    }
+
+    if (date && date.start && date.end) {
+      const startDate = new Date(date.start);
+      const endDate = new Date(date.end);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+      matchConditions.timeInMiles = {
+        $gte: startDate.getTime(),
+        $lte: endDate.getTime(),
+      };
+    }
+
+    if (amount && amount.min !== undefined) {
+      matchConditions.amount = { $gte: amount.min };
+    }
+
+    if (amount && amount.max !== undefined && amount.max !== null) {
+      matchConditions.amount = { ...matchConditions.amount, $lte: amount.max };
+    }
+
+    // Define the aggregation pipeline
     const pipeline = [
-      { $match: { authId } },
-      {
-        $sort: { date: -1 } // Sort by date in descending order to get the latest transaction first
-      },
+      { $match: matchConditions },
+      { $sort: { date: -1 } }, // Sort by date in descending order
       {
         $group: {
           _id: '$tag',
           lastUsedDate: { $first: '$date' },
           lastTransactionAmount: { $first: '$amount' },
           lastTransactionStatus: { $first: '$status' },
-          lastTransactionType: { $first: '$type' }, // Capture the last transaction type
+          lastTransactionType: { $first: '$type' },
           totalCreditAmount: {
-            $sum: {
-              $cond: [{ $eq: ['$type', 'CREDIT'] }, '$amount', 0]
-            }
+            $sum: { $cond: [{ $eq: ['$type', 'CREDIT'] }, '$amount', 0] },
           },
           totalDebitAmount: {
-            $sum: {
-              $cond: [{ $eq: ['$type', 'DEBIT'] }, '$amount', 0]
-            }
+            $sum: { $cond: [{ $eq: ['$type', 'DEBIT'] }, '$amount', 0] },
           },
           totalCreditSum: {
             $sum: {
-              $cond: [{ $and: [{ $eq: ['$type', 'CREDIT'] }, { $ne: ['$status', 'VOID'] }] }, '$amount', 0]
-            }
+              $cond: [
+                { $and: [{ $eq: ['$type', 'CREDIT'] }, { $ne: ['$status', 'VOID'] }] },
+                '$amount',
+                0,
+              ],
+            },
           },
           totalDebitSum: {
             $sum: {
-              $cond: [{ $and: [{ $eq: ['$type', 'DEBIT'] }, { $ne: ['$status', 'VOID'] }] }, '$amount', 0]
-            }
-          }
-        }
+              $cond: [
+                { $and: [{ $eq: ['$type', 'DEBIT'] }, { $ne: ['$status', 'VOID'] }] },
+                '$amount',
+                0,
+              ],
+            },
+          },
+        },
       },
       {
         $project: {
@@ -325,23 +374,39 @@ exports.getTagsSummary = async (req, res) => {
           lastUsedDate: 1,
           lastTransactionAmount: 1,
           lastTransactionStatus: 1,
-          lastTransactionType: 1, // Include the last transaction type in the projection
+          lastTransactionType: 1,
           totalCreditAmount: 1,
           totalDebitAmount: 1,
           totalCreditSum: 1,
           totalDebitSum: 1,
-          balance: {
-            $subtract: ['$totalCreditSum', '$totalDebitSum']
-          },
+          balance: { $subtract: ['$totalCreditSum', '$totalDebitSum'] },
           settlementMessage: {
             $cond: {
               if: { $gt: [{ $subtract: ['$totalCreditSum', '$totalDebitSum'] }, 0] },
-              then: { $concat: ["You 'll pay ", { $toString: { $subtract: ['$totalCreditSum', '$totalDebitSum'] } }, ''] },
-              else: { $concat: ["You 'll get ", { $toString: { $abs: { $subtract: ['$totalDebitSum', '$totalCreditSum'] } } }, ''] }
-            }
-          }
-        }
-      }
+              then: {
+                $concat: [
+                  "You 'll pay ",
+                  { $toString: { $subtract: ['$totalCreditSum', '$totalDebitSum'] } },
+                  '',
+                ],
+              },
+              else: {
+                $concat: [
+                  "You 'll get ",
+                  {
+                    $toString: {
+                      $abs: { $subtract: ['$totalDebitSum', '$totalCreditSum'] },
+                    },
+                  },
+                  '',
+                ],
+              },
+            },
+          },
+        },
+      },
+      { $skip: (page - 1) * limit },
+      { $limit: limit },
     ];
 
     const tagsSummary = await Transaction.aggregate(pipeline);
@@ -369,15 +434,23 @@ exports.getTransactionsByTag = async (req, res) => {
     const matchConditions = { authId, tag };
     
     // Add date range filter if dates are provided
-    if (startDate && endDate) {
-      matchConditions.date = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate)
-      };
-    }
+ // Add timeInMiles range filter if date range is provided
+ if (startDate && endDate) {
+  const startDate2 = new Date(startDate);
+  const endDate2 = new Date(endDate);
+
+  // Set start time to the beginning of the day and end time to the end of the day
+  startDate2.setHours(0, 0, 0, 0);
+  endDate2.setHours(23, 59, 59, 999);
+
+  matchConditions.timeInMiles = {
+    $gte: startDate2.getTime(),
+    $lte: endDate2.getTime()
+  };
+}
 
     // Find all transactions by tag
-    const transactions = await Transaction.find(matchConditions);
+    const transactions = await Transaction.find(matchConditions).sort({ timeInMiles: 1 }); // 1 for ascending order, -1 for descending order
 
     if (!transactions.length) {
       return res.status(200).json({ message: 'No transactions found for the given tag and date range.' });
