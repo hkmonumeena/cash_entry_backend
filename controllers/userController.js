@@ -3,6 +3,26 @@ const Transaction = require('../models/transactionModel');
 
 
 // Controller for creating a new user
+exports.privacyPolicy = async (req, res) => {
+  try {
+    const { authId, name, email, phoneNumber } = req.body;
+
+    const user = new User({
+      authId,
+      name,
+      email,
+      phoneNumber
+    });
+
+    await user.save();
+    res.status(200).json({ message: 'User created successfully', user });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+
+// Controller for creating a new user
 exports.createUser = async (req, res) => {
     try {
       const { authId, name, email, phoneNumber } = req.body;
