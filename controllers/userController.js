@@ -15,9 +15,9 @@ exports.privacyPolicy = async (req, res) => {
     });
 
     await user.save();
-    res.status(200).json({ message: 'User created successfully', user });
+    res.status(200).json({ success : true,message: 'User created successfully', user });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(200).json({success : false, message: error.message });
   }
 };
 
@@ -35,9 +35,9 @@ exports.createUser = async (req, res) => {
       });
   
       await user.save();
-      res.status(200).json({ message: 'User created successfully', user });
+      res.status(200).json({success : true, message: 'User created successfully', user });
     } catch (error) {
-      res.status(400).json({ message: error.message });
+      res.status(200).json({success : false, message: error.message });
     }
   };
 
@@ -55,15 +55,16 @@ exports.updateUser = async (req, res) => {
       });
   
       if (!user) {
-        return res.status(404).json({ message: 'User not found' });
+        return res.status(200).json({success : false,message: 'User not found' });
       }
   
       res.json({
+        success : true,
         message: 'User updated successfully',
         user
       });
     } catch (error) {
-      res.status(500).json({ message: error.message });
+      res.status(200).json({success : false,message: error.message });
     }
   };
 
@@ -77,17 +78,18 @@ exports.deleteUserAndTransactions = async (req, res) => {
     const user = await User.findOneAndDelete({ authId });
 
     if (!user) {
-      return res.status(404).json({ message: 'User not found with '+authId });
+      return res.status(200).json({success : false ,message: 'User not found with '+authId });
     }
 
     // Delete all transactions associated with the user
     const deletedTransactions = await Transaction.deleteMany({ authId });
 
     res.json({
+      success : true,
       message: 'User and associated transactions deleted successfully',
       deletedTransactionsCount: deletedTransactions.deletedCount
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(200).json({success : false, message: error.message });
   }
 };
