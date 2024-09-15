@@ -22,7 +22,7 @@ const userSchema = new mongoose.Schema({
   // For example, you might want to include:
   phoneNumber: {
     type: String,
-    required: true
+    required: false
   },
   createdAt: {
     type: Date,
