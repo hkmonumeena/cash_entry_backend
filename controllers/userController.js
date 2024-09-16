@@ -24,22 +24,44 @@ exports.privacyPolicy = async (req, res) => {
 
 // Controller for creating a new user
 exports.createUser = async (req, res) => {
-    try {
-      const { authId, name, email, phoneNumber } = req.body;
-  
-      const user = new User({
-        authId,
-        name,
-        email,
-        phoneNumber
+  try {
+    const { authId, email, name, phoneNumber } = req.body;
+    
+    // Check if a user with the same authId or email already exists
+    const existingUser = await User.findOne({
+      $or: [{ authId }, { email }]
+    });
+
+    if (existingUser) {
+      return res.status(200).json({
+        success: true,
+        message: 'User already a member with this authId or email'
       });
-  
-      await user.save();
-      res.status(200).json({success : true, message: 'User created successfully', user });
-    } catch (error) {
-      res.status(200).json({success : false, message: error.message });
     }
-  };
+
+    // If no existing user is found, create a new user
+    const user = new User({
+      authId,
+      name,
+      email,
+      phoneNumber
+    });
+
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'User created successfully',
+      user
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
 
 
 // Controller for updating a user's information
