@@ -9,7 +9,8 @@ const {
     getTransactionSummary,
     getTagsSummary,
     getTransactionsByTag,
-    getAllTransactionsFilter
+    getAllTransactionsFilter,
+    updateTagName
   } = require('../controllers/transactionController');
 const router = express.Router();
 
@@ -32,6 +33,9 @@ router.post('/transactions/tagSummary/', getTagsSummary);
 
 // Get summary transaction
 router.post('/transactions/byTag/', getTransactionsByTag);
+
+// Get summary transaction
+router.post('/update_tag', updateTagName);
 
 // Get summary transaction
 router.post('/transactions/filterTransactions/', getAllTransactionsFilter);

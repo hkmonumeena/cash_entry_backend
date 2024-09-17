@@ -680,6 +680,40 @@ exports.getAllTransactionsFilter = async (req, res) => {
 
 
 
+// Controller for updating tag name in all transactions
+exports.updateTagName = async (req, res) => {
+  const { oldTagName, newTagName, authId } = req.body; // Assuming the old tag name, new tag name, and authId are passed in the request body
+
+  if (!oldTagName || !newTagName || !authId) {
+      return res.status(200).json({ success: false, message: 'oldTagName, newTagName, and authId are required.' });
+  }
+
+  try {
+      // Update the tag name in all transactions for the given authId
+      const result = await Transaction.updateMany(
+          { authId, tag: { $regex: new RegExp(`^${oldTagName}$`, 'i') } }, // Match transactions with the old tag name and specific authId
+          { $set: { tag: newTagName } } // Update the tag field with the new tag name
+      );
+
+      if (result.matchedCount === 0) {
+          return res.status(200).json({ success: false, message: 'No transactions found with the specified tag name.' });
+      }
+
+      res.status(200).json({
+          success: true,
+          message: `Tag name updated successfully in ${result.modifiedCount} transactions.`,
+          matchedCount: result.matchedCount,
+          modifiedCount: result.modifiedCount
+      });
+  } catch (error) {
+      console.error('Error updating tag name:', error);
+      res.status(200).json({ success: false, message: 'An error occurred while updating the tag name.', error: error.message });
+  }
+};
+
+
+
+
 
 
 
