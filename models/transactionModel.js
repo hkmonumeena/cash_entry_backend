@@ -16,7 +16,7 @@ const transactionSchema = new mongoose.Schema({
     amount: Number,
     remarks: String,
     tag: String,
-    status: { type: String, enum: ['PENDING', 'CLEARED', 'OVERDUE', 'VOID'] },
+    status: { type: String, enum: ['PENDING', 'CLEARED', 'OVERDUE', 'VOID','SWAP'] },
     authId: { type: String, required: true }, // Reference to User's authId
     createdAt: {
         type: Date,
