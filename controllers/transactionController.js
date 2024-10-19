@@ -350,7 +350,7 @@ exports.getTagsSummary = async (req, res) => {
           totalCreditSum: {
             $sum: {
               $cond: [
-                { $and: [{ $eq: ['$type', 'CREDIT'] }, { $ne: ['$status', 'VOID'] }] },
+                { $and: [{ $eq: ['$type', 'CREDIT'] }, { $ne: ['$status', 'VOID'] },{ $ne: ['$status', 'CLEARED'] }] },
                 '$amount',
                 0,
               ],
@@ -359,7 +359,7 @@ exports.getTagsSummary = async (req, res) => {
           totalDebitSum: {
             $sum: {
               $cond: [
-                { $and: [{ $eq: ['$type', 'DEBIT'] }, { $ne: ['$status', 'VOID'] }] },
+                { $and: [{ $eq: ['$type', 'DEBIT'] }, { $ne: ['$status', 'VOID'] },{ $ne: ['$status', 'CLEARED'] }] },
                 '$amount',
                 0,
               ],
@@ -499,25 +499,25 @@ exports.getTransactionsByTag = async (req, res) => {
         $addFields: {
           netBalance: { 
             $subtract: [
-              { $subtract: ['$totalDebits', '$debitVoid'] }, 
-              { $subtract: ['$totalCredits', '$creditVoid'] }
+              { $subtract: ['$totalDebits',  { $add: ['$debitCleared', '$debitVoid'] } ] }, 
+              { $subtract: ['$totalCredits', { $add: ['$creditCleared', '$creditVoid'] }] }
             ]
           },
           message: {
             $cond: [
               { $gt: [
                 { $subtract: [
-                  { $subtract: ['$totalDebits', '$debitVoid'] },
-                  { $subtract: ['$totalCredits', '$creditVoid'] }
+                  { $subtract: ['$totalDebits', { $add: ['$debitCleared', '$debitVoid'] } ] },
+                  { $subtract: ['$totalCredits', { $add: ['$creditCleared', '$creditVoid'] }] }
                 ] }, 0] 
               },
               { $concat: ['You\'ll receive ', { $toString: { $subtract: [
-                { $subtract: ['$totalDebits', '$debitVoid'] },
-                { $subtract: ['$totalCredits', '$creditVoid'] }
+                { $subtract: ['$totalDebits', { $add: ['$debitCleared', '$debitVoid'] } ] },
+                { $subtract: ['$totalCredits', { $add: ['$creditCleared', '$creditVoid'] }] }
               ] } }, ' amount'] },
               { $concat: ['You\'ll pay ', { $toString: { $abs: { $subtract: [
-                { $subtract: ['$totalDebits', '$debitVoid'] },
-                { $subtract: ['$totalCredits', '$creditVoid'] }
+                { $subtract: ['$totalDebits', { $add: ['$debitCleared', '$debitVoid'] } ] },
+                { $subtract: ['$totalCredits', { $add: ['$creditCleared', '$creditVoid'] }] }
               ] } } }, ' amount'] }
             ]
           }
