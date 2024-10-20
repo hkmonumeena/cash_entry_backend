@@ -542,6 +542,8 @@ exports.getTransactionsByTag = async (req, res) => {
           debitCleared: 1,
           debitOverdue: 1,
           debitVoid: 1,
+          debitSwap: 1,
+          creditSwap:1,
           netBalance: 1,
           message: 1
         }
