@@ -481,6 +481,9 @@ exports.getTransactionsByTag = async (req, res) => {
           creditVoid: {
             $sum: { $cond: [{ $and: [ { $eq: ['$type', 'CREDIT'] }, { $eq: ['$status', 'VOID'] } ] }, '$amount', 0] }
           },
+          creditSwap: {
+            $sum: { $cond: [{ $and: [ { $eq: ['$type', 'CREDIT'] }, { $eq: ['$status', 'SWAP'] } ] }, '$amount', 0] }
+          },
           debitPending: { 
             $sum: { $cond: [{ $and: [ { $eq: ['$type', 'DEBIT'] }, { $eq: ['$status', 'PENDING'] } ] }, '$amount', 0] }
           },
@@ -492,6 +495,9 @@ exports.getTransactionsByTag = async (req, res) => {
           },
           debitVoid: {
             $sum: { $cond: [{ $and: [ { $eq: ['$type', 'DEBIT'] }, { $eq: ['$status', 'VOID'] } ] }, '$amount', 0] }
+          },
+          debitSwap: {
+            $sum: { $cond: [{ $and: [ { $eq: ['$type', 'DEBIT'] }, { $eq: ['$status', 'SWAP'] } ] }, '$amount', 0] }
           }
         }
       },
