@@ -100,18 +100,20 @@ exports.deleteUserAndTransactions = async (req, res) => {
     const user = await User.findOneAndDelete({ authId });
 
     if (!user) {
-      return res.status(200).json({success : false ,message: 'User not found with '+authId });
+      return res.json({ success: false, message: `User not found with ${authId}` });
     }
 
     // Delete all transactions associated with the user
     const deletedTransactions = await Transaction.deleteMany({ authId });
 
     res.json({
-      success : true,
+      success: true,
       message: 'User and associated transactions deleted successfully',
       deletedTransactionsCount: deletedTransactions.deletedCount
     });
   } catch (error) {
-    res.status(200).json({success : false, message: error.message });
+    // Always return a 200 status code even in case of an error
+    res.json({ success: false, message: error.message });
   }
 };
+

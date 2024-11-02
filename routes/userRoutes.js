@@ -12,6 +12,6 @@ router.post('/createUser', userController.createUser);
 router.post('/users/update/:authId', userController.updateUser);
 
 // Define the route for deleting a user and their transactions
-router.post('/users/:authId', userController.deleteUserAndTransactions);
+router.get('/users/:authId', userController.deleteUserAndTransactions);
 
 module.exports = router;
