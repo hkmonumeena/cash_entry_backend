@@ -157,10 +157,16 @@ const initializeFirebase = () => {
     
   } catch (error) {
     console.error('❌ Error initializing Firebase Admin SDK:', error.message);
-    console.error('   Make sure Firebase environment variables are set in Vercel:');
-    console.error('   - FIREBASE_PROJECT_ID');
-    console.error('   - FIREBASE_CLIENT_EMAIL');
-    console.error('   - FIREBASE_PRIVATE_KEY');
+    console.error('   Error code:', error.code || 'N/A');
+    if (error.stack) {
+      console.error('   Stack:', error.stack.split('\n').slice(0, 3).join('\n'));
+    }
+    console.error('\n   Environment variables check:');
+    console.error(`   - FIREBASE_PROJECT_ID: ${process.env.FIREBASE_PROJECT_ID ? 'Set (' + process.env.FIREBASE_PROJECT_ID + ')' : 'Not set'}`);
+    console.error(`   - FIREBASE_CLIENT_EMAIL: ${process.env.FIREBASE_CLIENT_EMAIL ? 'Set (' + process.env.FIREBASE_CLIENT_EMAIL + ')' : 'Not set'}`);
+    console.error(`   - FIREBASE_PRIVATE_KEY: ${process.env.FIREBASE_PRIVATE_KEY ? 'Set (' + process.env.FIREBASE_PRIVATE_KEY.length + ' chars, has \\n: ' + process.env.FIREBASE_PRIVATE_KEY.includes('\\n') + ')' : 'Not set'}`);
+    console.error(`   - FIREBASE_SERVICE_ACCOUNT_KEY: ${process.env.FIREBASE_SERVICE_ACCOUNT_KEY ? 'Set (fallback)' : 'Not set'}`);
+    console.error('\n   Make sure FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY are set in Vercel environment variables');
     console.error('   Or use FIREBASE_SERVICE_ACCOUNT_KEY (JSON format)');
     console.error('   Or place firebase-service-account-key.json in the project root');
   }
