@@ -67,9 +67,17 @@ exports.sendPushNotification = async (req, res) => {
     
     // Handle Firebase initialization errors
     if (error.message && error.message.includes('Invalid JWT Signature')) {
-      return sendResponse(res, 500, 'Firebase authentication failed. Please check your FIREBASE_SERVICE_ACCOUNT_KEY environment variable in Vercel. The private key may be incorrectly formatted or the key may have been revoked.', { 
+      const hasSplitVars = !!(process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY);
+      const hasJsonVar = !!process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+      
+      return sendResponse(res, 500, 'Firebase authentication failed. The private key may be incorrectly formatted or the key may have been revoked.', { 
         error: error.message,
-        hint: 'Make sure FIREBASE_SERVICE_ACCOUNT_KEY is set correctly in Vercel Settings → Environment Variables'
+        hint: hasSplitVars 
+          ? 'Check FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY in Vercel Settings → Environment Variables. Make sure FIREBASE_PRIVATE_KEY includes the full key with BEGIN/END lines.'
+          : hasJsonVar
+          ? 'Check FIREBASE_SERVICE_ACCOUNT_KEY in Vercel Settings → Environment Variables. Consider using split variables (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY) instead.'
+          : 'Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY in Vercel Settings → Environment Variables.',
+        checkKeyStatus: 'Verify the key is not revoked at https://console.firebase.google.com/project/quicklink-caller/iam-admin/serviceaccounts'
       });
     }
     

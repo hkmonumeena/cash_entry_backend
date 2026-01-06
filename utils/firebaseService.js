@@ -35,10 +35,25 @@ const initializeFirebase = () => {
   try {
     // Option 1: Use split environment variables (RECOMMENDED for Vercel)
     if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+      const projectId = process.env.FIREBASE_PROJECT_ID.trim();
+      const clientEmail = process.env.FIREBASE_CLIENT_EMAIL.trim();
+      let privateKey = process.env.FIREBASE_PRIVATE_KEY.trim();
+      
+      // Normalize private key - replace escaped newlines with actual newlines
+      privateKey = privateKey.replace(/\\n/g, '\n');
+      
+      // Validate private key format
+      if (!privateKey.startsWith('-----BEGIN PRIVATE KEY-----')) {
+        throw new Error('FIREBASE_PRIVATE_KEY must start with "-----BEGIN PRIVATE KEY-----"');
+      }
+      if (!privateKey.includes('\n')) {
+        throw new Error('FIREBASE_PRIVATE_KEY appears to be missing newline characters. Make sure to include the full key with BEGIN/END lines.');
+      }
+      
       const serviceAccount = {
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+        projectId: projectId,
+        clientEmail: clientEmail,
+        privateKey: privateKey
       };
 
       admin.initializeApp({
@@ -46,6 +61,7 @@ const initializeFirebase = () => {
       });
       console.log('✅ Firebase Admin SDK initialized using split environment variables');
       console.log(`   Project ID: ${serviceAccount.projectId}`);
+      console.log(`   Client Email: ${serviceAccount.clientEmail}`);
       return;
     }
 
