@@ -18,8 +18,19 @@ exports.sendPushNotification = async (req, res) => {
   try {
     // Check if Firebase is initialized
     if (!isFirebaseInitialized()) {
+      const hasSplitVars = !!(process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY);
+      const hasJsonVar = !!process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+      
       return sendResponse(res, 500, 'Firebase is not initialized. Please check your Firebase credentials configuration in Vercel environment variables.', {
-        hint: 'Set FIREBASE_SERVICE_ACCOUNT_KEY environment variable in Vercel Settings'
+        hint: hasSplitVars 
+          ? 'FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY are set but initialization failed. Check Vercel logs for details.'
+          : 'Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY environment variables in Vercel Settings → Environment Variables',
+        environmentVariables: {
+          FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID ? 'Set' : 'Not set',
+          FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL ? 'Set' : 'Not set',
+          FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY ? 'Set' : 'Not set',
+          FIREBASE_SERVICE_ACCOUNT_KEY: hasJsonVar ? 'Set (fallback)' : 'Not set'
+        }
       });
     }
 
