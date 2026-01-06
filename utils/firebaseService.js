@@ -99,9 +99,13 @@ const initializeFirebase = () => {
     }
   } catch (error) {
     console.error('❌ Error initializing Firebase Admin SDK:', error.message);
+    console.error('   Error code:', error.code);
     console.error('   Make sure FIREBASE_SERVICE_ACCOUNT_KEY is set in Vercel environment variables');
     console.error('   Or place firebase-service-account-key.json in the project root');
-    throw error;
+    
+    // Don't throw error, just log it - let the app continue
+    // The error will be caught when trying to send notifications
+    console.error('   Firebase will not be available until credentials are properly configured');
   }
 };
 

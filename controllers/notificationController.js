@@ -1,6 +1,6 @@
 // controllers/notificationController.js
 
-const { sendNotification, sendBackgroundNotification, sendVisibleNotification } = require('../utils/firebaseService');
+const { sendNotification, sendBackgroundNotification, sendVisibleNotification, isFirebaseInitialized } = require('../utils/firebaseService');
 const sendResponse = require('../utils/responseUtil');
 
 /**
@@ -16,6 +16,13 @@ const sendResponse = require('../utils/responseUtil');
  */
 exports.sendPushNotification = async (req, res) => {
   try {
+    // Check if Firebase is initialized
+    if (!isFirebaseInitialized()) {
+      return sendResponse(res, 500, 'Firebase is not initialized. Please check your Firebase credentials configuration in Vercel environment variables.', {
+        hint: 'Set FIREBASE_SERVICE_ACCOUNT_KEY environment variable in Vercel Settings'
+      });
+    }
+
     const { deviceToken, type, data, title, body, notification } = req.body;
 
     // Validate required fields
@@ -57,6 +64,14 @@ exports.sendPushNotification = async (req, res) => {
     }
   } catch (error) {
     console.error('Error in sendPushNotification:', error);
+    
+    // Handle Firebase initialization errors
+    if (error.message && error.message.includes('Invalid JWT Signature')) {
+      return sendResponse(res, 500, 'Firebase authentication failed. Please check your FIREBASE_SERVICE_ACCOUNT_KEY environment variable in Vercel. The private key may be incorrectly formatted or the key may have been revoked.', { 
+        error: error.message,
+        hint: 'Make sure FIREBASE_SERVICE_ACCOUNT_KEY is set correctly in Vercel Settings → Environment Variables'
+      });
+    }
     
     // Handle specific Firebase errors
     if (error.code === 'messaging/invalid-registration-token' || 
@@ -136,6 +151,32 @@ exports.sendBulkPushNotification = async (req, res) => {
   } catch (error) {
     console.error('Error in sendBulkPushNotification:', error);
     return sendResponse(res, 500, 'Failed to send bulk notifications', { error: error.message });
+  }
+};
+
+/**
+ * Check Firebase initialization status (diagnostic endpoint)
+ */
+exports.checkFirebaseStatus = async (req, res) => {
+  try {
+    const isInitialized = isFirebaseInitialized();
+    const hasEnvVar = !!process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    const hasGoogCreds = !!process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    const hasPath = !!process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
+
+    return sendResponse(res, 200, 'Firebase status check', {
+      initialized: isInitialized,
+      environmentVariables: {
+        FIREBASE_SERVICE_ACCOUNT_KEY: hasEnvVar ? 'Set' : 'Not set',
+        GOOGLE_APPLICATION_CREDENTIALS: hasGoogCreds ? 'Set' : 'Not set',
+        FIREBASE_SERVICE_ACCOUNT_PATH: hasPath ? process.env.FIREBASE_SERVICE_ACCOUNT_PATH : 'Not set'
+      },
+      message: isInitialized 
+        ? 'Firebase is properly initialized and ready to send notifications'
+        : 'Firebase is not initialized. Please set FIREBASE_SERVICE_ACCOUNT_KEY in Vercel environment variables.'
+    });
+  } catch (error) {
+    return sendResponse(res, 500, 'Error checking Firebase status', { error: error.message });
   }
 };
 
