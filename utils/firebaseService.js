@@ -9,9 +9,13 @@ const fs = require('fs');
 // or provide service account key in the code
 if (!admin.apps.length) {
   try {
-    // Option 1: Use service account key from environment variable (recommended)
+    // Option 1: Use service account key from environment variable (recommended for Vercel)
     if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
       const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+      // Ensure private key newlines are preserved
+      if (serviceAccount.private_key) {
+        serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+      }
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount)
       });
@@ -27,6 +31,10 @@ if (!admin.apps.length) {
     // Option 3: Use service account key file path from environment variable
     else if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
       const serviceAccount = require(process.env.FIREBASE_SERVICE_ACCOUNT_PATH);
+      // Ensure private key newlines are preserved
+      if (serviceAccount.private_key) {
+        serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+      }
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount)
       });
@@ -37,6 +45,10 @@ if (!admin.apps.length) {
       const defaultKeyPath = path.join(__dirname, '..', 'firebase-service-account-key.json');
       if (fs.existsSync(defaultKeyPath)) {
         const serviceAccount = require(defaultKeyPath);
+        // Ensure private key newlines are preserved
+        if (serviceAccount.private_key) {
+          serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+        }
         admin.initializeApp({
           credential: admin.credential.cert(serviceAccount)
         });
@@ -47,6 +59,11 @@ if (!admin.apps.length) {
     }
   } catch (error) {
     console.error('Error initializing Firebase Admin SDK:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
   }
 }
 
