@@ -38,15 +38,48 @@ const initializeFirebase = () => {
     // Option 1: Use service account key from environment variable (recommended for Vercel)
     if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
       try {
-        serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
-        // Normalize private key newlines
-        if (serviceAccount.private_key) {
-          serviceAccount.private_key = normalizePrivateKey(serviceAccount.private_key);
+        const envValue = process.env.FIREBASE_SERVICE_ACCOUNT_KEY.trim();
+        serviceAccount = JSON.parse(envValue);
+        
+        // Validate required fields
+        if (!serviceAccount.private_key) {
+          throw new Error('private_key is missing in FIREBASE_SERVICE_ACCOUNT_KEY');
         }
+        
+        // Normalize private key newlines - handle multiple formats
+        const originalKey = serviceAccount.private_key;
+        let normalizedKey = originalKey;
+        
+        // If it contains literal \n (escaped), replace with actual newlines
+        if (normalizedKey.includes('\\n') && !normalizedKey.includes('\n')) {
+          normalizedKey = normalizedKey.replace(/\\n/g, '\n');
+        }
+        // If it contains double-escaped \\n
+        else if (normalizedKey.includes('\\\\n')) {
+          normalizedKey = normalizedKey.replace(/\\\\n/g, '\n');
+        }
+        // If it's a single string without newlines, try to add them
+        else if (!normalizedKey.includes('\n') && normalizedKey.includes('MII')) {
+          // This shouldn't happen, but handle it
+          console.warn('Private key appears to be missing newlines');
+        }
+        
+        serviceAccount.private_key = normalizedKey;
+        
+        // Verify the key looks correct
+        if (!serviceAccount.private_key.startsWith('-----BEGIN PRIVATE KEY-----')) {
+          throw new Error('Private key format is invalid - missing BEGIN marker');
+        }
+        if (!serviceAccount.private_key.includes('\n')) {
+          throw new Error('Private key appears to be missing newline characters');
+        }
+        
         initMethod = 'FIREBASE_SERVICE_ACCOUNT_KEY';
+        console.log(`   Using FIREBASE_SERVICE_ACCOUNT_KEY (key length: ${serviceAccount.private_key.length}, newlines: ${(serviceAccount.private_key.match(/\n/g) || []).length})`);
       } catch (parseError) {
-        console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY:', parseError.message);
-        throw new Error('Invalid FIREBASE_SERVICE_ACCOUNT_KEY JSON format');
+        console.error('❌ Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY:', parseError.message);
+        console.error('   Make sure the environment variable contains valid JSON');
+        throw new Error(`Invalid FIREBASE_SERVICE_ACCOUNT_KEY: ${parseError.message}`);
       }
     } 
     // Option 2: Use GOOGLE_APPLICATION_CREDENTIALS environment variable
