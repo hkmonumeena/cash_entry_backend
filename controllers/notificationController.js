@@ -160,20 +160,29 @@ exports.sendBulkPushNotification = async (req, res) => {
 exports.checkFirebaseStatus = async (req, res) => {
   try {
     const isInitialized = isFirebaseInitialized();
-    const hasEnvVar = !!process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    const hasSplitVars = !!(process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY);
+    const hasJsonVar = !!process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
     const hasGoogCreds = !!process.env.GOOGLE_APPLICATION_CREDENTIALS;
     const hasPath = !!process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
 
     return sendResponse(res, 200, 'Firebase status check', {
       initialized: isInitialized,
       environmentVariables: {
-        FIREBASE_SERVICE_ACCOUNT_KEY: hasEnvVar ? 'Set' : 'Not set',
+        // Recommended method
+        FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID ? 'Set' : 'Not set',
+        FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL ? 'Set' : 'Not set',
+        FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY ? 'Set' : 'Not set',
+        // Fallback methods
+        FIREBASE_SERVICE_ACCOUNT_KEY: hasJsonVar ? 'Set' : 'Not set',
         GOOGLE_APPLICATION_CREDENTIALS: hasGoogCreds ? 'Set' : 'Not set',
         FIREBASE_SERVICE_ACCOUNT_PATH: hasPath ? process.env.FIREBASE_SERVICE_ACCOUNT_PATH : 'Not set'
       },
+      recommendedMethod: hasSplitVars ? 'split-variables' : hasJsonVar ? 'json-variable' : 'none',
       message: isInitialized 
         ? 'Firebase is properly initialized and ready to send notifications'
-        : 'Firebase is not initialized. Please set FIREBASE_SERVICE_ACCOUNT_KEY in Vercel environment variables.'
+        : hasSplitVars
+          ? 'Firebase environment variables are set but initialization failed. Check logs for details.'
+          : 'Firebase is not initialized. Please set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY in Vercel environment variables.'
     });
   } catch (error) {
     return sendResponse(res, 500, 'Error checking Firebase status', { error: error.message });
