@@ -1,6 +1,7 @@
 require('dotenv').config();
 const transactionRoutes = require('./routes/transactionRoutes')
 const userRoutes = require('./routes/userRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const express = require('express');
 const mongoose = require('mongoose');
 const app = express();
@@ -19,6 +20,8 @@ mongoose.connect(process.env.DBURI, { useNewUrlParser: true, useUnifiedTopology:
 app.use('/api', transactionRoutes);
 // Use the user routes
 app.use('/api', userRoutes);
+// Use the notification routes
+app.use('/api', notificationRoutes);
 
 app.get('/privacy_policy', (req, res) => {
   res.sendFile(__dirname + '/public/privacy_policy.html');
