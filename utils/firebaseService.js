@@ -4,68 +4,117 @@ const admin = require('firebase-admin');
 const path = require('path');
 const fs = require('fs');
 
-// Initialize Firebase Admin SDK
-// Make sure to set GOOGLE_APPLICATION_CREDENTIALS environment variable
-// or provide service account key in the code
-if (!admin.apps.length) {
+/**
+ * Normalize private key - handles different newline formats
+ * @param {string} privateKey - The private key string
+ * @returns {string} - Normalized private key with proper newlines
+ */
+const normalizePrivateKey = (privateKey) => {
+  if (!privateKey) return privateKey;
+  // Handle escaped newlines (from JSON string)
+  let normalized = privateKey.replace(/\\n/g, '\n');
+  // Handle literal \n strings
+  normalized = normalized.replace(/\\\\n/g, '\n');
+  // Ensure proper format
+  if (!normalized.includes('\n') && normalized.includes('\\n')) {
+    normalized = normalized.replace(/\\n/g, '\n');
+  }
+  return normalized;
+};
+
+/**
+ * Initialize Firebase Admin SDK
+ * Priority: FIREBASE_SERVICE_ACCOUNT_KEY > GOOGLE_APPLICATION_CREDENTIALS > FIREBASE_SERVICE_ACCOUNT_PATH > file
+ */
+const initializeFirebase = () => {
+  if (admin.apps.length > 0) {
+    return; // Already initialized
+  }
+
   try {
+    let serviceAccount = null;
+    let initMethod = '';
+
     // Option 1: Use service account key from environment variable (recommended for Vercel)
     if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
-      // Ensure private key newlines are preserved
-      if (serviceAccount.private_key) {
-        serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+      try {
+        serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+        // Normalize private key newlines
+        if (serviceAccount.private_key) {
+          serviceAccount.private_key = normalizePrivateKey(serviceAccount.private_key);
+        }
+        initMethod = 'FIREBASE_SERVICE_ACCOUNT_KEY';
+      } catch (parseError) {
+        console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY:', parseError.message);
+        throw new Error('Invalid FIREBASE_SERVICE_ACCOUNT_KEY JSON format');
       }
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-      });
-      console.log('Firebase Admin SDK initialized using FIREBASE_SERVICE_ACCOUNT_KEY');
     } 
     // Option 2: Use GOOGLE_APPLICATION_CREDENTIALS environment variable
     else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
       admin.initializeApp({
         credential: admin.credential.applicationDefault()
       });
-      console.log('Firebase Admin SDK initialized using GOOGLE_APPLICATION_CREDENTIALS');
+      console.log('✅ Firebase Admin SDK initialized using GOOGLE_APPLICATION_CREDENTIALS');
+      return;
     }
     // Option 3: Use service account key file path from environment variable
     else if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
-      const serviceAccount = require(process.env.FIREBASE_SERVICE_ACCOUNT_PATH);
-      // Ensure private key newlines are preserved
-      if (serviceAccount.private_key) {
-        serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+      const keyPath = path.resolve(process.env.FIREBASE_SERVICE_ACCOUNT_PATH);
+      if (fs.existsSync(keyPath)) {
+        serviceAccount = require(keyPath);
+        if (serviceAccount.private_key) {
+          serviceAccount.private_key = normalizePrivateKey(serviceAccount.private_key);
+        }
+        initMethod = 'FIREBASE_SERVICE_ACCOUNT_PATH';
+      } else {
+        throw new Error(`Firebase service account file not found: ${keyPath}`);
       }
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-      });
-      console.log('Firebase Admin SDK initialized using FIREBASE_SERVICE_ACCOUNT_PATH');
     }
     // Option 4: Auto-detect firebase-service-account-key.json in root directory
     else {
       const defaultKeyPath = path.join(__dirname, '..', 'firebase-service-account-key.json');
       if (fs.existsSync(defaultKeyPath)) {
-        const serviceAccount = require(defaultKeyPath);
-        // Ensure private key newlines are preserved
+        serviceAccount = require(defaultKeyPath);
         if (serviceAccount.private_key) {
-          serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+          serviceAccount.private_key = normalizePrivateKey(serviceAccount.private_key);
         }
-        admin.initializeApp({
-          credential: admin.credential.cert(serviceAccount)
-        });
-        console.log('Firebase Admin SDK initialized using firebase-service-account-key.json');
+        initMethod = 'firebase-service-account-key.json';
       } else {
-        console.warn('Firebase Admin SDK not initialized. Please set FIREBASE_SERVICE_ACCOUNT_KEY, GOOGLE_APPLICATION_CREDENTIALS, FIREBASE_SERVICE_ACCOUNT_PATH environment variable, or place firebase-service-account-key.json in the project root.');
+        throw new Error('Firebase credentials not found. Please set FIREBASE_SERVICE_ACCOUNT_KEY environment variable or place firebase-service-account-key.json in project root.');
       }
     }
+
+    // Initialize with service account
+    if (serviceAccount) {
+      // Validate required fields
+      if (!serviceAccount.project_id || !serviceAccount.private_key || !serviceAccount.client_email) {
+        throw new Error('Invalid service account: missing required fields (project_id, private_key, or client_email)');
+      }
+
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+      });
+      console.log(`✅ Firebase Admin SDK initialized using ${initMethod}`);
+      console.log(`   Project ID: ${serviceAccount.project_id}`);
+    }
   } catch (error) {
-    console.error('Error initializing Firebase Admin SDK:', error);
-    console.error('Error details:', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack
-    });
+    console.error('❌ Error initializing Firebase Admin SDK:', error.message);
+    console.error('   Make sure FIREBASE_SERVICE_ACCOUNT_KEY is set in Vercel environment variables');
+    console.error('   Or place firebase-service-account-key.json in the project root');
+    throw error;
   }
-}
+};
+
+// Initialize Firebase on module load
+initializeFirebase();
+
+/**
+ * Check if Firebase is initialized
+ * @returns {boolean}
+ */
+const isFirebaseInitialized = () => {
+  return admin.apps.length > 0;
+};
 
 /**
  * Send a background notification (data payload only)
@@ -74,6 +123,10 @@ if (!admin.apps.length) {
  * @returns {Promise<Object>} - The response from FCM
  */
 const sendBackgroundNotification = async (deviceToken, data) => {
+  if (!isFirebaseInitialized()) {
+    throw new Error('Firebase Admin SDK is not initialized. Please check your Firebase credentials configuration.');
+  }
+
   try {
     const message = {
       token: deviceToken,
@@ -121,6 +174,10 @@ const sendBackgroundNotification = async (deviceToken, data) => {
  * @returns {Promise<Object>} - The response from FCM
  */
 const sendVisibleNotification = async (deviceToken, title, body = '', data = {}) => {
+  if (!isFirebaseInitialized()) {
+    throw new Error('Firebase Admin SDK is not initialized. Please check your Firebase credentials configuration.');
+  }
+
   try {
     const message = {
       token: deviceToken,
@@ -195,6 +252,7 @@ const sendNotification = async (deviceToken, type, payload) => {
 module.exports = {
   sendBackgroundNotification,
   sendVisibleNotification,
-  sendNotification
+  sendNotification,
+  isFirebaseInitialized
 };
 
