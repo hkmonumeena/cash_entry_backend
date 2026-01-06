@@ -35,55 +35,74 @@ const initializeFirebase = () => {
   try {
     // Option 1: Use split environment variables (RECOMMENDED for Vercel)
     if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
-      const projectId = process.env.FIREBASE_PROJECT_ID.trim();
-      const clientEmail = process.env.FIREBASE_CLIENT_EMAIL.trim();
-      let privateKey = process.env.FIREBASE_PRIVATE_KEY;
-      
-      // Handle different newline formats that Vercel might use
-      // First, try to replace escaped newlines
-      if (privateKey.includes('\\n')) {
-        privateKey = privateKey.replace(/\\n/g, '\n');
-      }
-      // If it still doesn't have newlines but has the key content, try to add them
-      // This handles cases where Vercel might have stripped newlines
-      if (!privateKey.includes('\n') && privateKey.includes('MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDYB')) {
-        // Try to reconstruct with newlines at known positions
-        // This is a fallback - ideally the key should have newlines
-        console.warn('⚠️  Private key appears to be missing newlines, attempting to normalize...');
-        privateKey = privateKey.replace(/(-----BEGIN PRIVATE KEY-----)(.+?)(-----END PRIVATE KEY-----)/s, 
-          (match, begin, content, end) => {
-            // Add newlines every 64 characters (standard PEM format)
-            const normalizedContent = content.replace(/(.{64})/g, '$1\n').trim();
-            return `${begin}\n${normalizedContent}\n${end}\n`;
-          });
-      }
-      
-      privateKey = privateKey.trim();
-      
-      // Validate private key format
-      if (!privateKey.startsWith('-----BEGIN PRIVATE KEY-----')) {
-        throw new Error('FIREBASE_PRIVATE_KEY must start with "-----BEGIN PRIVATE KEY-----"');
-      }
-      if (!privateKey.endsWith('-----END PRIVATE KEY-----')) {
-        throw new Error('FIREBASE_PRIVATE_KEY must end with "-----END PRIVATE KEY-----"');
-      }
-      
-      // Log key info for debugging (without exposing the actual key)
-      console.log(`   Private key length: ${privateKey.length}, has newlines: ${privateKey.includes('\n')}, newline count: ${(privateKey.match(/\n/g) || []).length}`);
-      
-      const serviceAccount = {
-        projectId: projectId,
-        clientEmail: clientEmail,
-        privateKey: privateKey
-      };
+      try {
+        const projectId = process.env.FIREBASE_PROJECT_ID.trim();
+        const clientEmail = process.env.FIREBASE_CLIENT_EMAIL.trim();
+        let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+        
+        console.log(`   Initializing with split variables - Project: ${projectId}, Email: ${clientEmail}`);
+        console.log(`   Private key length: ${privateKey.length}, contains \\n: ${privateKey.includes('\\n')}, contains actual newlines: ${privateKey.includes('\n')}`);
+        
+        // Handle different newline formats that Vercel might use
+        // First, try to replace escaped newlines
+        if (privateKey.includes('\\n')) {
+          privateKey = privateKey.replace(/\\n/g, '\n');
+          console.log(`   After replacing \\n: has newlines: ${privateKey.includes('\n')}, newline count: ${(privateKey.match(/\n/g) || []).length}`);
+        }
+        
+        // If it still doesn't have newlines but has the key content, try to add them
+        if (!privateKey.includes('\n') && (privateKey.includes('MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSk') || privateKey.includes('MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSj'))) {
+          // Try to reconstruct with newlines at known positions
+          console.warn('⚠️  Private key appears to be missing newlines, attempting to normalize...');
+          privateKey = privateKey.replace(/(-----BEGIN PRIVATE KEY-----)(.+?)(-----END PRIVATE KEY-----)/s, 
+            (match, begin, content, end) => {
+              // Add newlines every 64 characters (standard PEM format)
+              const normalizedContent = content.replace(/(.{64})/g, '$1\n').trim();
+              return `${begin}\n${normalizedContent}\n${end}\n`;
+            });
+          console.log(`   After normalization: has newlines: ${privateKey.includes('\n')}, newline count: ${(privateKey.match(/\n/g) || []).length}`);
+        }
+        
+        privateKey = privateKey.trim();
+        
+        // Validate private key format
+        if (!privateKey.startsWith('-----BEGIN PRIVATE KEY-----')) {
+          throw new Error('FIREBASE_PRIVATE_KEY must start with "-----BEGIN PRIVATE KEY-----". Current start: ' + privateKey.substring(0, 50));
+        }
+        if (!privateKey.endsWith('-----END PRIVATE KEY-----')) {
+          throw new Error('FIREBASE_PRIVATE_KEY must end with "-----END PRIVATE KEY-----". Current end: ' + privateKey.substring(privateKey.length - 50));
+        }
+        if (!privateKey.includes('\n')) {
+          throw new Error('FIREBASE_PRIVATE_KEY must contain newline characters. The key appears to be on a single line.');
+        }
+        
+        // Log key info for debugging (without exposing the actual key)
+        console.log(`   Final private key: length=${privateKey.length}, newlines=${(privateKey.match(/\n/g) || []).length}, starts correctly=${privateKey.startsWith('-----BEGIN')}, ends correctly=${privateKey.endsWith('-----END PRIVATE KEY-----')}`);
+        
+        const serviceAccount = {
+          projectId: projectId,
+          clientEmail: clientEmail,
+          privateKey: privateKey
+        };
 
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-      });
-      console.log('✅ Firebase Admin SDK initialized using split environment variables');
-      console.log(`   Project ID: ${serviceAccount.projectId}`);
-      console.log(`   Client Email: ${serviceAccount.clientEmail}`);
-      return;
+        console.log('   Attempting to initialize Firebase Admin SDK...');
+        admin.initializeApp({
+          credential: admin.credential.cert(serviceAccount)
+        });
+        console.log('✅ Firebase Admin SDK initialized using split environment variables');
+        console.log(`   Project ID: ${serviceAccount.projectId}`);
+        console.log(`   Client Email: ${serviceAccount.clientEmail}`);
+        return;
+      } catch (initError) {
+        console.error('❌ Failed to initialize with split environment variables:', initError.message);
+        console.error('   Error details:', {
+          name: initError.name,
+          code: initError.code,
+          message: initError.message
+        });
+        // Re-throw to be caught by outer catch
+        throw initError;
+      }
     }
 
     // Option 2: Use service account key from environment variable (fallback)
