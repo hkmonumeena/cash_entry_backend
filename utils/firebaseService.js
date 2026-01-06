@@ -37,18 +37,39 @@ const initializeFirebase = () => {
     if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
       const projectId = process.env.FIREBASE_PROJECT_ID.trim();
       const clientEmail = process.env.FIREBASE_CLIENT_EMAIL.trim();
-      let privateKey = process.env.FIREBASE_PRIVATE_KEY.trim();
+      let privateKey = process.env.FIREBASE_PRIVATE_KEY;
       
-      // Normalize private key - replace escaped newlines with actual newlines
-      privateKey = privateKey.replace(/\\n/g, '\n');
+      // Handle different newline formats that Vercel might use
+      // First, try to replace escaped newlines
+      if (privateKey.includes('\\n')) {
+        privateKey = privateKey.replace(/\\n/g, '\n');
+      }
+      // If it still doesn't have newlines but has the key content, try to add them
+      // This handles cases where Vercel might have stripped newlines
+      if (!privateKey.includes('\n') && privateKey.includes('MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDYB')) {
+        // Try to reconstruct with newlines at known positions
+        // This is a fallback - ideally the key should have newlines
+        console.warn('⚠️  Private key appears to be missing newlines, attempting to normalize...');
+        privateKey = privateKey.replace(/(-----BEGIN PRIVATE KEY-----)(.+?)(-----END PRIVATE KEY-----)/s, 
+          (match, begin, content, end) => {
+            // Add newlines every 64 characters (standard PEM format)
+            const normalizedContent = content.replace(/(.{64})/g, '$1\n').trim();
+            return `${begin}\n${normalizedContent}\n${end}\n`;
+          });
+      }
+      
+      privateKey = privateKey.trim();
       
       // Validate private key format
       if (!privateKey.startsWith('-----BEGIN PRIVATE KEY-----')) {
         throw new Error('FIREBASE_PRIVATE_KEY must start with "-----BEGIN PRIVATE KEY-----"');
       }
-      if (!privateKey.includes('\n')) {
-        throw new Error('FIREBASE_PRIVATE_KEY appears to be missing newline characters. Make sure to include the full key with BEGIN/END lines.');
+      if (!privateKey.endsWith('-----END PRIVATE KEY-----')) {
+        throw new Error('FIREBASE_PRIVATE_KEY must end with "-----END PRIVATE KEY-----"');
       }
+      
+      // Log key info for debugging (without exposing the actual key)
+      console.log(`   Private key length: ${privateKey.length}, has newlines: ${privateKey.includes('\n')}, newline count: ${(privateKey.match(/\n/g) || []).length}`);
       
       const serviceAccount = {
         projectId: projectId,
